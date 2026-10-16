@@ -98,7 +98,7 @@ fn add_vector(doc: &Document, id: NodeId, skip: &BTreeSet<usize>, t: &mut Target
 /// The snapping that applies to a pointer event: (objects and points, the pixel grid).
 pub(crate) fn modes(s: &Session, ev: &PointerEvent) -> (bool, bool) {
     let (objects, pixel) = s.ds().map(|d| (d.view.snap_objects, d.view.snap_pixel)).unwrap_or((true, true));
-    (objects && !ev.cmd, pixel)
+    (objects && !ev.cmd && !ev.ctrl, pixel)
 }
 
 /// The correction that snaps page points `pts` (already moved by the pointer) together, and the

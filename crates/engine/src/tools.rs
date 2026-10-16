@@ -1863,7 +1863,8 @@ impl Session {
             self.tool.overlay.marquee = None;
             self.cancel_interaction()?;
         }
-        let Some(leaf) = self.hit(&doc, page, ev.p(), ev.tol() * 2.0) else { return Ok(()) };
+        let tol = (ev.tol() * 6.0).max(6.0 / ev.zoom.max(1e-6));
+        let Some(leaf) = self.hit(&doc, page, ev.p(), tol) else { return Ok(()) };
         let target = select_target(&doc, leaf, &sel, true);
         // Text: edit at the click.
         if doc.node(target).is_some_and(|n| matches!(n.kind, NodeKind::Text(_)))
@@ -1881,8 +1882,11 @@ impl Session {
             return Ok(());
         }
         // Shapes and vectors: enter vector edit mode (every selected shape, the clicked one active).
-        if doc.node(target).is_some_and(|n| n.kind.is_shape()) && sel.contains(&target) {
+        if doc.node(target).is_some_and(|n| n.kind.is_shape()) {
             let mut ids = crate::vectoredit::enter_targets(&doc, &sel).unwrap_or_default();
+            if !ids.contains(&target) {
+                ids.push(target);
+            }
             ids.retain(|i| *i != target);
             ids.insert(0, target);
             return crate::vectoredit::begin_many(self, &ids);
@@ -2222,6 +2226,15 @@ impl Session {
         }
         if !alt && !cmd && self.guide_key(name, shift)? {
             return Ok(true);
+        }
+        if name == "Enter" && !shift && !alt && !cmd {
+            if let Ok(doc) = self.doc() {
+                let sel = self.selection();
+                if let Some(ids) = crate::vectoredit::enter_targets(doc, &sel) {
+                    crate::vectoredit::begin_many(self, &ids)?;
+                    return Ok(true);
+                }
+            }
         }
         crate::shapebuilder::key(self, name)
     }

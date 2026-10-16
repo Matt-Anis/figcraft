@@ -1313,6 +1313,25 @@ fn vector_overlay(
     if !points {
         return;
     }
+    if active {
+        for (i, seg) in o.segments.iter().enumerate() {
+            let is_hovered = hover_seg == Some(i);
+            let is_selected = o.selected_segments.contains(&i);
+            if !is_hovered && !is_selected {
+                continue;
+            }
+            let [a, b, c, d] = [sp(&seg[0]), sp(&seg[1]), sp(&seg[2]), sp(&seg[3])];
+            let mid = Pos2::new((a.x + 3.0 * b.x + 3.0 * c.x + d.x) / 8.0, (a.y + 3.0 * b.y + 3.0 * c.y + d.y) / 8.0);
+            let near_mid = is_hovered
+                && match hover {
+                    Some(VHit::Segment { t, .. }) => (t - 0.5).abs() <= 0.15,
+                    _ => false,
+                };
+            let (radius, fill, stroke_color) = if near_mid { (4.5, ACCENT, Color32::WHITE) } else { (3.5, Color32::WHITE, ACCENT) };
+            painter.circle_filled(mid, radius, fill);
+            painter.circle_stroke(mid, radius, stroke(stroke_color, 1.2));
+        }
+    }
     for h in &o.handles {
         let hovered = hover == Some(VHit::Handle { seg: h.seg, start: h.start });
         let on = o.selected_handles.contains(&(h.seg, h.start));

@@ -232,7 +232,9 @@ fn node_outline_at(doc: &Document, n: &Node, depth: usize) -> Option<(BezPath, F
         NodeKind::Vector { network } => {
             let rule =
                 if network.regions.iter().any(|r| r.winding == figcraft_doc::WindingRule::EvenOdd) { FillRule::EvenOdd } else { FillRule::Winding };
-            Some((network.fill_path(), rule))
+            let f = network.fill_path();
+            let path = if f.elements().is_empty() { network.stroke_path() } else { f };
+            Some((path, rule))
         }
         _ => figcraft_doc::geometry::shape_path(n).map(|p| (p, FillRule::Winding)),
     }

@@ -341,3 +341,37 @@ fn eraser_strokes_cut_paths_in_one_step() {
     assert!(key(&mut s, "E", true, false, false).unwrap());
     assert_eq!(ve(&s).tool, VTool::Eraser);
 }
+
+#[test]
+fn line_editing_bend_with_ctrl() {
+    let mut s = Session::new();
+    let r = ex(&mut s, "shape.line", json!({"x": 0.0, "y": 0.0, "width": 100.0}));
+    let line = crate::params::id_of(&r["id"]).unwrap();
+    s.set_selection(vec![line]);
+    // Enter enters vector edit mode
+    assert!(s.tool_key("Enter", false, false, false).unwrap());
+    assert!(s.ds().unwrap().vector_edit.is_some(), "in vector edit mode");
+
+    // Hovering with Ctrl shows Bend cursor
+    let mut hover = ev(PointerKind::Hover, 50.0, 0.0);
+    hover.ctrl = true;
+    s.pointer(&hover).unwrap();
+    assert_eq!(s.tool.overlay.cursor, crate::tools::Cursor::Pen(crate::tools::PenCursor::Bend));
+
+    // Ctrl-drag bends the line segment on Linux / Windows
+    let mut down = ev(PointerKind::Down, 50.0, 0.0);
+    down.ctrl = true;
+    s.pointer(&down).unwrap();
+    s.pointer(&ev(PointerKind::Move, 50.0, 40.0)).unwrap();
+    s.pointer(&ev(PointerKind::Up, 50.0, 40.0)).unwrap();
+    let b = s.doc().unwrap().world_bounds(line).unwrap();
+    assert!(b.y1 > 20.0, "line bent downwards with ctrl: {b:?}");
+
+    // Alt-click on segment adds a point
+    let mut alt_down = ev(PointerKind::Down, 50.0, 40.0);
+    alt_down.alt = true;
+    s.pointer(&alt_down).unwrap();
+    s.pointer(&ev(PointerKind::Up, 50.0, 40.0)).unwrap();
+    let n = net(&s, line);
+    assert_eq!(n.vertices.len(), 3, "alt drag/click inserted a vertex");
+}

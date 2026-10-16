@@ -346,10 +346,11 @@ impl Session {
         ov.guides.clear();
         ov.brush = (ve.tool == VTool::Eraser).then(|| [ev.x, ev.y, ERASER_PX / ev.zoom.max(1e-6)]);
         // What a press here would do (see `vector_down`).
+        let cmd_or_ctrl = ev.cmd || ev.ctrl;
         ov.cursor = match (ve.tool, h) {
             (VTool::Bend, _) => Cursor::Pen(PenCursor::Bend),
-            (VTool::Move, Some(_)) if ev.cmd => Cursor::Pen(PenCursor::Bend),
-            (VTool::Move, _) if ev.cmd => Cursor::Crosshair,
+            (VTool::Move, Some(_)) if cmd_or_ctrl => Cursor::Pen(PenCursor::Bend),
+            (VTool::Move, _) if cmd_or_ctrl => Cursor::Crosshair,
             (VTool::Move, Some(VHit::Segment { .. })) if ev.alt => Cursor::Pen(PenCursor::Add),
             (VTool::Move, _) => Cursor::Default,
             (VTool::Pen, Some(VHit::Vertex { .. })) => Cursor::Pen(PenCursor::Close),
@@ -363,7 +364,7 @@ impl Session {
         // point or segment but outside the region clearances, the region wins (a press takes it).
         let mut region = None;
         match ve.tool {
-            VTool::Move if !ev.cmd => {
+            VTool::Move if !cmd_or_ctrl => {
                 // Over the transform box's handles: their cursor, and no point highlighted.
                 if let Some(BoxHit::Handle(handle)) = transform::box_hit(&doc, ve, h, ev.p(), ev.zoom)
                     && let Some(b) = transform::shown_box(&doc, ve)
@@ -512,7 +513,8 @@ impl Session {
         self.tool.overlay.vector_hover = None;
         self.tool.overlay.face.clear();
         self.tool.overlay.guides.clear();
-        let tool = if ev.cmd && ve.tool == VTool::Move { VTool::Bend } else { ve.tool };
+        let cmd_or_ctrl = ev.cmd || ev.ctrl;
+        let tool = if cmd_or_ctrl && ve.tool == VTool::Move { VTool::Bend } else { ve.tool };
         let id = ve.id;
         let w = doc.world_transform(id);
         // Regions come after Bezier handles (and the transform box's handles), before points and
