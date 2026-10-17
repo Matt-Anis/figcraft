@@ -358,20 +358,24 @@ fn line_editing_bend_with_ctrl() {
     s.pointer(&hover).unwrap();
     assert_eq!(s.tool.overlay.cursor, crate::tools::Cursor::Pen(crate::tools::PenCursor::Bend));
 
-    // Ctrl-drag bends the line segment on Linux / Windows
-    let mut down = ev(PointerKind::Down, 50.0, 0.0);
+    // Hovering at midpoint without modifiers shows Add cursor
+    let hover_mid = ev(PointerKind::Hover, 50.0, 0.0);
+    s.pointer(&hover_mid).unwrap();
+    assert_eq!(s.tool.overlay.cursor, crate::tools::Cursor::Pen(crate::tools::PenCursor::Add));
+
+    // Dragging the midpoint handle without Alt creates a sharp bend (new vertex)
+    s.pointer(&ev(PointerKind::Down, 50.0, 0.0)).unwrap();
+    s.pointer(&ev(PointerKind::Move, 50.0, 30.0)).unwrap();
+    s.pointer(&ev(PointerKind::Up, 50.0, 30.0)).unwrap();
+    let n = net(&s, line);
+    assert_eq!(n.vertices.len(), 3, "midpoint drag inserted a vertex without alt");
+
+    // Ctrl-drag bends a segment into a smooth Bezier curve on Linux / Windows
+    let mut down = ev(PointerKind::Down, 25.0, 15.0);
     down.ctrl = true;
     s.pointer(&down).unwrap();
-    s.pointer(&ev(PointerKind::Move, 50.0, 40.0)).unwrap();
-    s.pointer(&ev(PointerKind::Up, 50.0, 40.0)).unwrap();
+    s.pointer(&ev(PointerKind::Move, 25.0, 40.0)).unwrap();
+    s.pointer(&ev(PointerKind::Up, 25.0, 40.0)).unwrap();
     let b = s.doc().unwrap().world_bounds(line).unwrap();
-    assert!(b.y1 > 20.0, "line bent downwards with ctrl: {b:?}");
-
-    // Alt-click on segment adds a point
-    let mut alt_down = ev(PointerKind::Down, 50.0, 40.0);
-    alt_down.alt = true;
-    s.pointer(&alt_down).unwrap();
-    s.pointer(&ev(PointerKind::Up, 50.0, 40.0)).unwrap();
-    let n = net(&s, line);
-    assert_eq!(n.vertices.len(), 3, "alt drag/click inserted a vertex");
+    assert!(b.y1 > 35.0, "segment bent with ctrl: {b:?}");
 }

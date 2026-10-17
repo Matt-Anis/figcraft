@@ -351,7 +351,7 @@ impl Session {
             (VTool::Bend, _) => Cursor::Pen(PenCursor::Bend),
             (VTool::Move, Some(_)) if cmd_or_ctrl => Cursor::Pen(PenCursor::Bend),
             (VTool::Move, _) if cmd_or_ctrl => Cursor::Crosshair,
-            (VTool::Move, Some(VHit::Segment { .. })) if ev.alt => Cursor::Pen(PenCursor::Add),
+            (VTool::Move, Some(VHit::Segment { t, .. })) if ev.alt || (t - 0.5).abs() <= 0.15 => Cursor::Pen(PenCursor::Add),
             (VTool::Move, _) => Cursor::Default,
             (VTool::Pen, Some(VHit::Vertex { .. })) => Cursor::Pen(PenCursor::Close),
             (VTool::Pen, Some(VHit::Segment { .. })) => Cursor::Pen(PenCursor::Add),
@@ -628,22 +628,7 @@ impl Session {
                     self.vgesture(g);
                 }
                 Some(VHit::Segment { seg, t }) => {
-                    if ev.alt {
-                        // Add a point on the segment and drag it.
-                        self.begin_interaction("Add point")?;
-                        let mut v = None;
-                        self.preview(|doc, _| {
-                            v = edit(doc, id, |net| ops::split_segment(net, seg, t))?;
-                            Ok(())
-                        })?;
-                        let Some(v) = v else { return Ok(true) };
-                        set_state(self, |e| {
-                            e.clear_selection();
-                            e.vertices = vec![v];
-                        })?;
-                        let g = self.points_gesture(id, ev.p(), vec![v], vec![], Some((seg, t)), false)?;
-                        self.vgesture(g);
-                    } else if ev.shift {
+                    if ev.shift {
                         set_state(self, |e| {
                             if let Some(i) = e.segments.iter().position(|x| *x == seg) {
                                 e.segments.remove(i);
@@ -651,6 +636,23 @@ impl Session {
                                 e.segments.push(seg);
                             }
                         })?;
+                    } else if ev.alt || (t - 0.5).abs() <= 0.15 {
+                        let near_mid = (t - 0.5).abs() <= 0.15;
+                        let split_t = if near_mid && !ev.alt { 0.5 } else { t };
+                        // Add a point on the segment and drag it.
+                        self.begin_interaction("Add point")?;
+                        let mut v = None;
+                        self.preview(|doc, _| {
+                            v = edit(doc, id, |net| ops::split_segment(net, seg, split_t))?;
+                            Ok(())
+                        })?;
+                        let Some(v) = v else { return Ok(true) };
+                        set_state(self, |e| {
+                            e.clear_selection();
+                            e.vertices = vec![v];
+                        })?;
+                        let g = self.points_gesture(id, ev.p(), vec![v], vec![], Some((seg, split_t)), false)?;
+                        self.vgesture(g);
                     } else {
                         let ends = network(&doc, id).and_then(|n| n.segments.get(seg)).map(|s| vec![s.a, s.b]).unwrap_or_default();
                         set_state(self, |e| {
@@ -999,8 +1001,14 @@ impl Session {
         let Gesture::Vector(g) = g else { return Ok(()) };
         match g {
             VGesture::Points { moved, split, click_clears, .. } => {
-                if moved || split.is_some() {
+                if moved || (split.is_some() && ev.alt) {
                     self.commit_interaction()?;
+                } else if let Some((seg, _)) = split {
+                    self.cancel_interaction()?;
+                    set_state(self, |e| {
+                        e.clear_selection();
+                        e.segments = vec![seg];
+                    })?;
                 } else {
                     self.cancel_interaction()?;
                     if click_clears {
